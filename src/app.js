@@ -172,9 +172,38 @@ app.put("/customers/:id", async (req, res) => {
 
 //----------------------------------RENTALS----------------------------------//
 app.get("/rentals", async (req, res) => {
+    const customerQuery = req.query.customerId ? req.query.customerId : null;
+    const gameQuery = req.query.gameId ? req.query.gameId : null;
+
     try {
-        const rentals = await connection.query('SELECT * FROM rentals');
-        res.send(rentals.rows);
+        const rentals = await connection.query(`
+        SELECT rentals.*,
+            customers.name AS "customerName",
+            games.name AS "gameName",
+            games."categoryId" AS "categoryId",
+            categories.name AS "categoryName"
+        FROM rentals
+        JOIN customers ON rentals."customerId" = customers.id
+        JOIN games ON rentals."gameId" = games.id
+        JOIN categories ON games."categoryId" = categories.id
+        WHERE (${customerQuery} IS NULL OR rentals."customerId" = $1)
+        AND (${gameQuery} IS NULL OR rentals."gameId" = $2)`, [customerQuery, gameQuery]);
+        const data = rentals.rows.map(e => {
+            const { id, customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee } = e;
+            const rental = { id, customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee };
+            rental.customer = {
+                id: e.customerId,
+                name: e.customerName
+            }
+            rental.game = {
+                id: e.gameId,
+                name: e.gameName,
+                categoryId: e.categoryId,
+                categoryName: e.categoryName
+            }
+            return rental;
+        });
+        res.send(data);
     } catch(err) {
         console.log(err);
         res.sendStatus(500);
@@ -201,7 +230,7 @@ app.post("/rentals", async (req, res) => {
             VALUES
                 ($1,$2,$3,$4,$5,$6,$7)`
                 ,[ customerId, gameId, rentDate + ' ', daysRented, null, originalPrice, null ]);
-                
+
         res.sendStatus(201);
     } catch(err) {
         console.log(err);
