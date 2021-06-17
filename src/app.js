@@ -121,6 +121,19 @@ app.get("/customers", async (req, res) => {
     }
 })
 
+app.get("/customers/:id", async (req, res) => {
+    const id = req.params.id;
+    
+    try {
+        const customer = await connection.query('SELECT * FROM customers WHERE id = $1', [id]);
+        if (!customer.rows[0]) return res.sendStatus(404);
+        res.send(customer.rows[0]);
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
+
 app.post("/customers", async (req, res) => {
     const { name, phone, cpf, birthday } = req.body;
     if (customerSchema.validate(req.body).error) return res.sendStatus(400);
