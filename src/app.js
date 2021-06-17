@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import pg from 'pg';
 import Joi from 'joi';
+import dayjs from 'dayjs';
 
 const app = express();
 app.use(cors());
@@ -170,6 +171,58 @@ app.put("/customers/:id", async (req, res) => {
 })
 
 //----------------------------------RENTALS----------------------------------//
+app.get("/rentals", async (req, res) => {
+    try {
+
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
+
+app.post("/rentals", async (req, res) => { //dayjs().format('YYYY-MM-DD')
+    const { customerId, gameId, daysRented } = req.body;
+    const rentDate = dayjs().format('YYYY-MM-DD');
+    if (daysRented <= 0) return res.sendStatus(400);
+    try {
+        const customer = await connection.query('SELECT * FROM customers WHERE id = $1', [customerId]);
+        if (!customer.rows[0]) return res.sendStatus(400);
+        const game = await connection.query('SELECT "pricePerDay" FROM games WHERE id = $1', [gameId]);
+        if (!game.rows[0]) return res.sendStatus(400);
+        const originalPrice = game.rows[0].pricePerDay * daysRented;
+        /*
+        await connection.query(
+            `INSERT INTO 
+            rentals
+                ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee")
+            VALUES
+                ($1,$2,$3,$4,$5,$6,$7)`
+                ,[ customerId, gameId, rentDate, daysRented, null, originalPrice, null ]);
+        */
+        res.sendStatus(201);
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
+
+app.post("/rentals/:id/return", async (req, res) => {
+    try {
+
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
+
+app.delete("/rentals/:id", async (req, res) => {
+    try {
+
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
 
 app.listen(4000, () => {
     console.log('On business baby.');
