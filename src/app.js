@@ -185,6 +185,7 @@ app.get("/rentals", async (req, res) => {
     const gameQuery = req.query.gameId ? req.query.gameId : null;
     const offset = req.query.offset ? req.query.offset : 0;
     const limit = req.query.limit ? req.query.limit : null;
+    const status = req.query.status ? req.query.status : null;
 
     try {
         const rentals = await connection.query(`
@@ -283,6 +284,27 @@ app.delete("/rentals/:id", async (req, res) => {
         if (rental.rows[0].returnDate !== null) return res.sendStatus(400);
         await connection.query('DELETE FROM rentals WHERE id = $1', [id]);
         res.sendStatus(200);
+    } catch(err) {
+        console.log(err);
+        res.sendStatus(500);
+    }
+})
+
+//----------------------------------RENTALS/METRICS----------------------------------//
+app.get("/rentals/metrics", async (req, res) => {
+    const startDate = req.query.startDate ? req.query.startDate : dayjs(0).format('YYYY-MM-DD');
+    const endDate = req.query.endDate ? req.query.endDate : dayjs().format('YYYY-MM-DD');
+    
+    try {
+        const rentals = await connection.query(`
+        SELECT
+            SUM("originalPrice" + "delayFee") AS revenue,
+            COUNT(id) AS rentals,
+            AVG("originalPrice" + "delayFee") AS average
+        FROM rentals
+        WHERE "delayFee" >= 0 AND "rentDate" >= $1 AND "rentDate" <= $2
+        `, [startDate, endDate]);
+        res.send(rentals.rows[0]);
     } catch(err) {
         console.log(err);
         res.sendStatus(500);
