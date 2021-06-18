@@ -40,8 +40,15 @@ const gameSchema = Joi.object({
 
 //----------------------------------CATEGORIES----------------------------------//
 app.get("/categories", async (req, res) => {
+    const offset = req.query.offset ? req.query.offset : 0;
+    const limit = req.query.limit ? req.query.limit : null;
+
     try {
-        const categories = await connection.query('SELECT * FROM categories');
+        const categories = await connection.query(`
+        SELECT * FROM categories 
+        OFFSET $1 ROWS
+        LIMIT $2
+        `, [offset, limit]);
         res.send(categories.rows);
     } catch(err) {
         console.log(err);
@@ -66,14 +73,18 @@ app.post("/categories", async (req, res) => {
 //----------------------------------GAMES----------------------------------//
 app.get("/games", async (req, res) => {
     const name = req.query.name ? req.query.name + '%' : '%';
+    const offset = req.query.offset ? req.query.offset : 0;
+    const limit = req.query.limit ? req.query.limit : null;
 
     try {
         const games = await connection.query(`
         SELECT games.*, categories.name AS "categoryName"
         FROM games
         JOIN categories ON games."categoryId" = categories.id
-        WHERE games.name ILIKE $1`
-        , [name]);
+        WHERE games.name ILIKE $1
+        OFFSET $2 ROWS
+        LIMIT $3`
+        , [name, offset, limit]);
         res.send(games.rows);
     } catch(err) {
         console.log(err);
@@ -102,10 +113,17 @@ app.post("/games", async (req, res) => {
 
 //----------------------------------CUSTOMERS----------------------------------//
 app.get("/customers", async (req, res) => {
-    const query = req.query.cpf ? req.query.cpf + '%' : '%';
+    const cpf = req.query.cpf ? req.query.cpf + '%' : '%';
+    const offset = req.query.offset ? req.query.offset : 0;
+    const limit = req.query.limit ? req.query.limit : null;
     
     try {
-        const customers = await connection.query('SELECT * FROM customers WHERE cpf LIKE $1', [query]);
+        const customers = await connection.query(`
+        SELECT * FROM customers
+        WHERE cpf LIKE $1
+        OFFSET $2 ROWS
+        LIMIT $3
+        `, [cpf, offset, limit]);
         res.send(customers.rows);
     } catch(err) {
         console.log(err);
@@ -165,6 +183,8 @@ app.put("/customers/:id", async (req, res) => {
 app.get("/rentals", async (req, res) => {
     const customerQuery = req.query.customerId ? req.query.customerId : null;
     const gameQuery = req.query.gameId ? req.query.gameId : null;
+    const offset = req.query.offset ? req.query.offset : 0;
+    const limit = req.query.limit ? req.query.limit : null;
 
     try {
         const rentals = await connection.query(`
@@ -178,7 +198,10 @@ app.get("/rentals", async (req, res) => {
         JOIN games ON rentals."gameId" = games.id
         JOIN categories ON games."categoryId" = categories.id
         WHERE (${customerQuery} IS NULL OR rentals."customerId" = $1)
-        AND (${gameQuery} IS NULL OR rentals."gameId" = $2)`, [customerQuery, gameQuery]);
+        AND (${gameQuery} IS NULL OR rentals."gameId" = $2)
+        OFFSET $3 ROWS
+        LIMIT $4
+        `, [customerQuery, gameQuery, offset, limit]);
         const data = rentals.rows.map(e => {
             const { id, customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee } = e;
             const rental = { id, customerId, gameId, rentDate, daysRented, returnDate, originalPrice, delayFee };
