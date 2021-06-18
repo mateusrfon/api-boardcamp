@@ -171,7 +171,7 @@ app.put("/customers/:id", async (req, res) => {
 })
 
 //----------------------------------RENTALS----------------------------------//
-app.get("/rentals", async (req, res) => {
+app.get("/rentals", async (req, res) => { //Into
     const customerQuery = req.query.customerId ? req.query.customerId : null;
     const gameQuery = req.query.gameId ? req.query.gameId : null;
 
@@ -239,8 +239,21 @@ app.post("/rentals", async (req, res) => {
 })
 
 app.post("/rentals/:id/return", async (req, res) => {
+    const id = req.params.id;
+    const returnDate = dayjs().format('YYYY-MM-DD');
+    
     try {
-
+        const rental = await connection.query('SELECT * FROM rentals WHERE id = $1', [id]);
+        if (!rental.rows[0]) return res.sendStatus(404);
+        if (rental.rows[0].returnDate !== null) return res.sendStatus(400);
+        
+        const rentDate = new Date(rental.rows[0].rentDate);
+        const msRentDate = rentDate.getTime();
+        const elapsedDays = parseInt((Date.now() - msRentDate) / 86400000);
+        const delayFee = elapsedDays * rental.rows[0].originalPrice / rental.rows[0].daysRented;
+        
+        await connection.query('UPDATE rentals SET "returnDate" = $1, "delayFee" = $2 WHERE id = $3', [returnDate, delayFee, id]);
+        res.sendStatus(201);
     } catch(err) {
         console.log(err);
         res.sendStatus(500);
