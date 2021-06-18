@@ -18,6 +18,7 @@ const connection = new Pool({
     database: 'boardcamp'
 })
 
+//----------------------------------SCHEMAS----------------------------------//
 const categorieSchema = Joi.object({
     name: Joi.string().min(1).required()
 })
@@ -28,7 +29,6 @@ const customerSchema = Joi.object({
     cpf: Joi.string().length(11).regex(/^[0-9]+$/).required(),
     birthday: Joi.date()
 })
-//const rentalSchema =
 
 const gameSchema = Joi.object({
     name: Joi.string().min(1).required(),
@@ -37,11 +37,6 @@ const gameSchema = Joi.object({
     categoryId: Joi.number().integer().required(),
     pricePerDay: Joi.number().integer().min(1).required()
 })
-
-//C -> INSERT INTO categories (name) VALUES (a) - ex. INSERT INTO categories (x,y,z) VALUES (a,b,c)
-//R -> SELECT * FROM *table* WHERE *parameter* = n LIMIT x
-//U -> UPDATE *table* SET *parameter* = n WHERE id = x (sem WHERE da update em TUDO)
-//D -> DELETE FROM *table* WHERE id = x (sem WHERE deleta TUDO)
 
 //----------------------------------CATEGORIES----------------------------------//
 app.get("/categories", async (req, res) => {
@@ -60,7 +55,7 @@ app.post("/categories", async (req, res) => {
     try {
         const repeated = await connection.query("SELECT name FROM categories WHERE name ILIKE $1", [name]);
         if (repeated.rows[0]) return res.sendStatus(409);
-        const pera = await connection.query('INSERT INTO categories (name) VALUES ($1)', [name]);
+        await connection.query('INSERT INTO categories (name) VALUES ($1)', [name]);
         res.sendStatus(201);
     } catch(err) {
         console.log(err);
@@ -70,19 +65,15 @@ app.post("/categories", async (req, res) => {
 
 //----------------------------------GAMES----------------------------------//
 app.get("/games", async (req, res) => {
-    const name = req.query.name + '%';
+    const name = req.query.name ? req.query.name + '%' : '%';
 
     try {
-        const games = req.query.name    ? await connection.query("SELECT * FROM games WHERE name ILIKE $1", [name])
-                                        : await connection.query('SELECT * FROM games');
-        const categories = await connection.query('SELECT * FROM categories');
-        games.rows.forEach(e => {
-            for (let i = 0; i < categories.rows.length; i++) {
-                if (e.categoryId === categories.rows[i].id) {
-                    return e.categoryName = categories.rows[i].name;
-                }
-            }
-        })
+        const games = await connection.query(`
+        SELECT games.*, categories.name AS "categoryName"
+        FROM games
+        JOIN categories ON games."categoryId" = categories.id
+        WHERE games.name ILIKE $1`
+        , [name]);
         res.send(games.rows);
     } catch(err) {
         console.log(err);
@@ -109,7 +100,7 @@ app.post("/games", async (req, res) => {
     }
 })
 
-//----------------------------------CLIENTS----------------------------------//
+//----------------------------------CUSTOMERS----------------------------------//
 app.get("/customers", async (req, res) => {
     const query = req.query.cpf ? req.query.cpf + '%' : '%';
     
@@ -171,7 +162,7 @@ app.put("/customers/:id", async (req, res) => {
 })
 
 //----------------------------------RENTALS----------------------------------//
-app.get("/rentals", async (req, res) => { //Into
+app.get("/rentals", async (req, res) => {
     const customerQuery = req.query.customerId ? req.query.customerId : null;
     const gameQuery = req.query.gameId ? req.query.gameId : null;
 
@@ -214,7 +205,7 @@ app.post("/rentals", async (req, res) => {
     const { customerId, gameId, daysRented } = req.body;
     const rentDate = dayjs().format('YYYY-MM-DD');
     
-    if (daysRented <= 0) return res.sendStatus(400);
+    if (daysRented <= 0 || typeof daysRented !== 'number') return res.sendStatus(400);
     try {
         const customer = await connection.query('SELECT * FROM customers WHERE id = $1', [customerId]);
         if (!customer.rows[0]) return res.sendStatus(400);
@@ -222,7 +213,8 @@ app.post("/rentals", async (req, res) => {
         if (!game.rows[0]) return res.sendStatus(400);
         const originalPrice = game.rows[0].pricePerDay * daysRented;
         const rentals = await connection.query('SELECT * FROM rentals WHERE "gameId" = $1', [gameId]);
-        if (rentals.rows.length >= game.rows[0].stockTotal) return res.sendStatus(400);
+        const unreturned = rentals.rows.filter(e => e.returnDate === null);
+        if (unreturned.length >= game.rows[0].stockTotal) return res.sendStatus(400);
         await connection.query(
             `INSERT INTO 
             rentals
@@ -238,7 +230,7 @@ app.post("/rentals", async (req, res) => {
     }
 })
 
-app.post("/rentals/:id/return", async (req, res) => { //Done
+app.post("/rentals/:id/return", async (req, res) => {
     const id = req.params.id;
     const returnDate = dayjs().format('YYYY-MM-DD');
     
@@ -260,7 +252,7 @@ app.post("/rentals/:id/return", async (req, res) => { //Done
     }
 })
 
-app.delete("/rentals/:id", async (req, res) => { //Done
+app.delete("/rentals/:id", async (req, res) => {
     const id = req.params.id;
     try {
         const rental = await connection.query('SELECT * FROM rentals WHERE id = $1', [id]);
@@ -273,6 +265,7 @@ app.delete("/rentals/:id", async (req, res) => { //Done
         res.sendStatus(500);
     }
 })
+
 
 app.listen(4000, () => {
     console.log('On business baby.');
